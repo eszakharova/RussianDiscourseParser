@@ -66,6 +66,7 @@
 
 **Текущее качество**
 + [код сравнение разных моделей](https://github.com/eszakharova/RussianDiscourseParser/blob/master/prediction/prediction_v1_different_models.ipynb)
++ [код - последняя версия](https://github.com/eszakharova/RussianDiscourseParser/blob/master/prediction/prediction_v2_new_features.ipynb)
 + Пока что лучшая модель - Random Forest (1500 деревьев)
 + Средние метрики по всем классам на кросс-валидации по 5 фолдам (подозрительно высокое качесвто из-за оверсемплинга, на самом деле все не очень хорошо):
 
