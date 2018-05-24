@@ -4,19 +4,24 @@ import pickle
 from nltk import word_tokenize
 from sklearn.feature_extraction.text import CountVectorizer
 from scipy.sparse import csr_matrix, hstack
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix
 import regex as re
 from collections import Counter
 from imblearn.over_sampling import SMOTE
 from gensim.models import Doc2Vec, Word2Vec
+from collections import defaultdict
 
 
 model_d = Doc2Vec.load('vec/model_d.w2v')
 model_w = Word2Vec.load('vec/model_w.w2v')
 
+# def iterate_pos(pos_list):
+#     for pos in pos_list:
+#         yield pos
+
 def iterate_pos(pos_list):
-    for pos in pos_list:
-        yield pos
+    return pos_list
+
 
 
 def rel_type_only(y):
@@ -40,6 +45,8 @@ def all_classification_reports(y_true, y_pred):
     print(classification_report(nucl_only(y_true), nucl_only(y_pred)))
     print('Presence of relation:')
     print(classification_report(presence_only(y_true), presence_only(y_pred)))
+    print('Confusion matrix:')
+    print(confusion_matrix(y_true, y_pred))
 
 
 def load_pairs_target_remove_minor_classes():
@@ -72,9 +79,30 @@ def load_pairs_target():
     return ok_pairs, ok_target
 
 
+def has_markers(lemmas):
+    result_dict = defaultdict(int)
+    markers_dict = {'attribution': ['надеяться', 'опасаться', 'отметить', 'отмечать', 'сообщаться', 'утверждать', 'заявить', 'заявлять', 'передать', 'передавать', 'подчеркнуть', 'подчеркивать',
+    'написать', 'рассказать', 'рассказывать', 'сообщить', 'сообщать', 'сказать', 'сообщать',
+    'сообщаться', 'сообщить', 'писать', 'написать', 'объявить', 'объявлять'],
+    'cause-effect': ['поскольку', 'причина', 'результат', 'вследствие', 'из-за', 'потому'],
+    'concession': ['несмотря'],
+    'condition': ['пока', 'если'],
+    'contrast': ['вместо'],
+    'elaboration': ['который'],
+    'joint': ['параллельно'],
+    'purpose' :['чтобы', 'для']}
+    for rel in markers_dict:
+        for marker in markers_dict[rel]:
+            if marker in lemmas:
+                result_dict[rel] = 1
+                break
+    return result_dict
+
+
+    return
 def generate_feature_matrix(pairs):
-    c_vect = CountVectorizer(min_df=5, tokenizer=word_tokenize)
-    pos_vect = CountVectorizer(tokenizer=iterate_pos, lowercase=False)
+    c_vect = CountVectorizer(min_df=5, ngram_range=(1,3), tokenizer=word_tokenize)
+    pos_vect = CountVectorizer(tokenizer=iterate_pos, ngram_range=(1,3), lowercase=False)
     DataDict = {'edu1_position': [],
                 'edu2_position': [],
                 'edu1_endsent': [],
@@ -83,8 +111,26 @@ def generate_feature_matrix(pairs):
                 'edu2_startsent': [],
                 'edu1_len': [],
                 'edu2_len': [],
-                'same_tokens': []}
+                'same_tokens': [],
+                'attribution1': [],
+                'cause-effect1': [],
+                'concession1': [],
+                'condition1': [],
+                'contrast1': [],
+                'elaboration1': [],
+                'joint1': [],
+                'purpose1' :[],
+                'attribution2': [],
+                'cause-effect2': [],
+                'concession2': [],
+                'condition2': [],
+                'contrast2': [],
+                'elaboration2': [],
+                'joint2': [],
+                'purpose2' :[]}
     for pair in pairs:
+        markers_dict1 = has_markers(pair.edu1.lemmatized_tokens)
+        markers_dict2 = has_markers(pair.edu2.lemmatized_tokens)
         DataDict['edu1_position'].append(int(pair.edu1.position))
         DataDict['edu2_position'].append(int(pair.edu2.position))
         DataDict['edu1_endsent'].append(int(pair.edu1.sentence_end))
@@ -96,6 +142,10 @@ def generate_feature_matrix(pairs):
         # количество совпадающих токенов (леммы)
         DataDict['same_tokens'].append(len(set(pair.edu1.lemmatized_tokens).intersection(
             pair.edu2.lemmatized_tokens)))
+        for rel_name in ['attribution','cause-effect','concession','condition','contrast','elaboration','joint','purpose']:
+            DataDict[rel_name+'1'].append(markers_dict1[rel_name])
+            DataDict[rel_name+'2'].append(markers_dict2[rel_name])
+
 
     X = pd.DataFrame(DataDict)
 
