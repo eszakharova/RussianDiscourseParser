@@ -29,7 +29,7 @@ class EDU:
     def __init__(self, edu_text, position):
         self.text = edu_text
         self.position = int(position)
-        self.tokens = word_tokenize(self.text)
+        self.tokens = word_tokenize(self.text.strip('#'))
         self.sentence_start = self.starts_sentence()
         self.sentence_end = self.ends_sentence()
         self.lemmatized_tokens = []
@@ -248,7 +248,7 @@ def read_corpus(dir_path):
     return corpus_soup
 
 
-def pairs_to_pickle(edupairs, dirpath='..'):
+def pairs_to_pickle(edupairs, dirpath='../..'):
     with open(os.path.join(dirpath, "all_pairs.pkl"), 'wb') as outfile:
         pickle.dump(edupairs, file=outfile)
     target = []
@@ -267,7 +267,7 @@ def pairs_to_csv(edupairs, filepath='../all_data.csv'):
                              pair.edu2.text, pair.text_id, pair.relation])
 
 
-def generate_matrix_all(window=5, dir_path='../corpus_rs3/corpus'):
+def generate_matrix_all(window=5, dir_path='../../corpus_rs3/corpus'):
     text_soups = read_corpus(dir_path)
     all_pairs = []
     for i, text_soup in enumerate(text_soups):
