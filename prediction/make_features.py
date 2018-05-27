@@ -287,6 +287,113 @@ def generate_feature_matrix(pairs):
     print(X_concat.shape)
     return X_concat
 
+def get_feature_names(pairs):
+    feature_names = []
+    c_vect = CountVectorizer(min_df=5, ngram_range=(1,3), tokenizer=word_tokenize)
+    pos_vect = CountVectorizer(tokenizer=iterate_pos, ngram_range=(1,3), lowercase=False)
+    mp = MaltParser("/home/lena/opt/maltparser-1.9.2","/home/lena/opt/russian.mco")
+    model_d = Doc2Vec.load('vec/model_d.w2v')
+    model_w = Word2Vec.load('vec/model_w.w2v')
+    DataDict = {'edu1_position': [],
+                'edu2_position': [],
+                'edu1_endsent': [],
+                'edu1_startsent': [],
+                'edu2_endsent': [],
+                'edu2_startsent': [],
+                'edu1_len': [],
+                'edu2_len': [],
+                'same_tokens': [],
+                'distance': [],
+                'attribution1': [],
+                'cause-effect1': [],
+                'concession1': [],
+                'condition1': [],
+                'contrast1': [],
+                'elaboration1': [],
+                'joint1': [],
+                'purpose1' :[],
+                'attribution2': [],
+                'cause-effect2': [],
+                'concession2': [],
+                'condition2': [],
+                'contrast2': [],
+                'elaboration2': [],
+                'joint2': [],
+                'purpose2' :[]}
+    for pair in pairs:
+        markers_dict1 = has_markers(pair.edu1.lemmatized_tokens)
+        markers_dict2 = has_markers(pair.edu2.lemmatized_tokens)
+        DataDict['edu1_position'].append(int(pair.edu1.position))
+        DataDict['edu2_position'].append(int(pair.edu2.position))
+        DataDict['edu1_endsent'].append(int(pair.edu1.sentence_end))
+        DataDict['edu2_endsent'].append(int(pair.edu2.sentence_end))
+        DataDict['edu1_startsent'].append(int(pair.edu1.sentence_start))
+        DataDict['edu2_startsent'].append(int(pair.edu2.sentence_start))
+        DataDict['edu1_len'].append(len(pair.edu1.tokens))
+        DataDict['edu2_len'].append(len(pair.edu2.tokens))
+        # количество совпадающих токенов (леммы)
+        DataDict['same_tokens'].append(len(set(pair.edu1.lemmatized_tokens).intersection(
+            pair.edu2.lemmatized_tokens)))
+        DataDict['distance'].append(int(pair.edu2.position)-int(pair.edu1.position)-1)
+        for rel_name in ['attribution','cause-effect','concession','condition','contrast','elaboration','joint','purpose']:
+            DataDict[rel_name+'1'].append(markers_dict1[rel_name])
+            DataDict[rel_name+'2'].append(markers_dict2[rel_name])
+
+
+    X = pd.DataFrame(DataDict)
+    feature_names.extend(X.columns)
+    # векторайзер по словам
+    all_texts = [pair.edu1.text for pair in pairs] + [pair.edu2.text for pair in pairs]
+    c_vect.fit(all_texts)
+    # edus1_vect = c_vect.transform([pair.edu1.text for pair in pairs])
+    # edus2_vect = c_vect.transform([pair.edu2.text for pair in pairs])
+
+    feature_names.extend([i+'1' for i in c_vect.get_feature_names() ])
+    feature_names.extend([i+'2' for i in c_vect.get_feature_names() ])
+
+    # векторайзер по тегам частей речи
+    all_pos = [pair.edu1.pos for pair in pairs] + [pair.edu2.pos for pair in pairs]
+    pos_vect.fit(all_pos)
+    pos1_vect = pos_vect.transform([pair.edu1.pos for pair in pairs])
+    pos2_vect = pos_vect.transform([pair.edu2.pos for pair in pairs])
+
+    feature_names.extend([i+'1' for i in pos_vect.get_feature_names() ])
+    feature_names.extend([i+'2' for i in pos_vect.get_feature_names() ])
+
+    # Doc2Vec - вектор ЭДЕ
+    d2v1 = csr_matrix(np.array([model_d.infer_vector(pair.edu1.tokens) for pair in pairs]))
+    d2v2 = csr_matrix(np.array([model_d.infer_vector(pair.edu1.tokens) for pair in pairs]))
+
+    feature_names.extend(['d2v1'+str(i) for i in range(100)])
+    feature_names.extend(['d2v2'+str(i) for i in range(100)])
+
+    # Word2Vec - векторы первого и последнего токена в ЭДЕ
+    w2v1_first = csr_matrix(np.array([w2v_word_vector(model_w, pair.edu1.tokens[0]) for pair in pairs]))
+    w2v2_first = csr_matrix(np.array([w2v_word_vector(model_w, pair.edu2.tokens[0]) for pair in pairs]))
+    w2v1_last = csr_matrix(np.array([w2v_word_vector(model_w, pair.edu1.tokens[-1]) for pair in pairs]))
+    w2v2_last = csr_matrix(np.array([w2v_word_vector(model_w, pair.edu2.tokens[-1]) for pair in pairs]))
+
+    feature_names.extend(['w2v1_first'+str(i) for i in range(100)])
+    feature_names.extend(['w2v2_first'+str(i) for i in range(100)])
+
+    feature_names.extend(['w2v1_last'+str(i) for i in range(100)])
+    feature_names.extend(['w2v2_last'+str(i) for i in range(100)])
+
+    # # СИНТАКСИС Word2Vec - векторы head ЭДЕ, POS-теги head ЭДЕ
+    # head_ids_edu1 = [detect_head(mp.parse_one(pair.edu1.tokens)) for pair in pairs]
+    # head_ids_edu2 = [detect_head(mp.parse_one(pair.edu2.tokens)) for pair in pairs]
+    # head_vectors_edu1 = csr_matrix(np.array([w2v_word_vector(model_w, pairs[i].edu1.tokens[head_ids_edu1[i]]) for i in range(len(pairs))]))
+    # head_vectors_edu2 = csr_matrix(np.array([w2v_word_vector(model_w, pairs[i].edu2.tokens[head_ids_edu2[i]]) for i in range(len(pairs))]))
+    # head_pos_edu1 = pos_vect.transform([[pairs[i].edu1.pos[head_ids_edu1[i]]] for i in range(len(pairs))])
+    # head_pos_edu2 = pos_vect.transform([[pairs[i].edu2.pos[head_ids_edu2[i]]] for i in range(len(pairs))])
+
+    # X_sparse = csr_matrix(np.array(X))
+    # X_concat = hstack((X_sparse, edus1_vect, edus2_vect, pos1_vect, pos2_vect, d2v1, d2v2,
+    #                    w2v1_first, w2v2_first, w2v1_last, w2v2_last))
+    print(len(feature_names))
+
+    return feature_names
+
 # def generate_feature_matrix_(pairs):
 #     c_vect = CountVectorizer(min_df=5, tokenizer=word_tokenize)
 #     pos_vect = CountVectorizer(tokenizer=iterate_pos, lowercase=False)
